@@ -1,0 +1,89 @@
+defaults: default.yaml
+
+experiment:
+  name: five_task_public_2d
+  task_order: [kvasir_seg, busi, sts_2d, isic_2018, ebhi_seg]
+
+tasks:
+  - name: kvasir_seg
+    modality: RGB endoscopy
+    source:
+      image_dir: /content/ca_sam_data/kvasir_seg/images
+      mask_dir: /content/ca_sam_data/kvasir_seg/masks
+      image_glob: "**/*"
+      mask_glob: "**/*"
+    labels: {mode: binary, threshold: 0, foreground_name: polyp}
+    empty_mask_policy: skip
+    split: &standard_split
+      seed: 42
+      max_samples: null
+      group_aware: false
+      ratios: {train: 0.70, val: 0.15, test: 0.15}
+
+  - name: busi
+    modality: ultrasound
+    source:
+      image_dir: /content/ca_sam_data/busi/images
+      mask_dir: /content/ca_sam_data/busi/masks
+      image_glob: "**/*"
+      mask_glob: "**/*"
+      mask_matching: {strip_suffixes: ["_mask"]}
+    labels: {mode: binary, threshold: 0, foreground_name: lesion}
+    empty_mask_policy: skip
+    split: *standard_split
+
+  - name: sts_2d
+    modality: dental X-ray
+    source:
+      image_dir: /content/ca_sam_data/sts_2d/images
+      mask_dir: /content/ca_sam_data/sts_2d/masks
+      image_glob: "**/*"
+      mask_glob: "**/*"
+    labels: {mode: binary, threshold: 0, foreground_name: teeth}
+    empty_mask_policy: skip
+    split: *standard_split
+
+  - name: isic_2018
+    modality: dermoscopy
+    source:
+      image_dir: /content/ca_sam_data/isic_2018/images
+      mask_dir: /content/ca_sam_data/isic_2018/masks
+      image_glob: "**/*"
+      mask_glob: "**/*"
+      mask_matching: {strip_suffixes: ["_segmentation"]}
+    labels: {mode: binary, threshold: 0, foreground_name: skin_lesion}
+    empty_mask_policy: skip
+    split: *standard_split
+
+  - name: ebhi_seg
+    modality: histopathology
+    source:
+      image_glob: "*.png"
+      mask_glob: "*.png"
+      collections:
+        - name: Adenocarcinoma
+          image_dir: /content/ca_sam_data/ebhi_seg/raw/EBHI-SEG/Adenocarcinoma/image
+          mask_dir: /content/ca_sam_data/ebhi_seg/raw/EBHI-SEG/Adenocarcinoma/label
+        - name: High-grade_IN
+          image_dir: /content/ca_sam_data/ebhi_seg/raw/EBHI-SEG/High-grade IN/image
+          mask_dir: /content/ca_sam_data/ebhi_seg/raw/EBHI-SEG/High-grade IN/label
+        - name: Low-grade_IN
+          image_dir: /content/ca_sam_data/ebhi_seg/raw/EBHI-SEG/Low-grade IN/image
+          mask_dir: /content/ca_sam_data/ebhi_seg/raw/EBHI-SEG/Low-grade IN/label
+        - name: Normal
+          image_dir: /content/ca_sam_data/ebhi_seg/raw/EBHI-SEG/Normal/image
+          mask_dir: /content/ca_sam_data/ebhi_seg/raw/EBHI-SEG/Normal/label
+        - name: Polyp
+          image_dir: /content/ca_sam_data/ebhi_seg/raw/EBHI-SEG/Polyp/image
+          mask_dir: /content/ca_sam_data/ebhi_seg/raw/EBHI-SEG/Polyp/label
+        - name: Serrated_adenoma
+          image_dir: /content/ca_sam_data/ebhi_seg/raw/EBHI-SEG/Serrated adenoma/image
+          mask_dir: /content/ca_sam_data/ebhi_seg/raw/EBHI-SEG/Serrated adenoma/label
+    labels: {mode: binary, threshold: 0, foreground_name: affected_area}
+    empty_mask_policy: skip
+    split:
+      seed: 42
+      max_samples: null
+      group_aware: false
+      ratios: {train: 0.70, val: 0.15, test: 0.15}
+

@@ -1,17 +1,11 @@
 experiment:
   name: five_task_public_2d
   seed: 42
-  task_order:
-    - kvasir_seg
-    - busi
-    - sts_2d
-    - isic_2018
-    - ebhi_seg
 
 paths:
-  data_root: /content/ca_sam_official_data
+  prepared_data_root: /content/ca_sam_official_data
   sam_checkpoint: /content/pretrain_model/sam_vit_b_01ec64.pth
-  output_root: /content/drive/MyDrive/CA_SAM/CL_SAM_runs
+  output_root: /content/drive/MyDrive/CA_SAM/CL_SAM_runs/five_task_default
 
 training:
   device: cuda:0
@@ -19,19 +13,26 @@ training:
   method: cnn
   num_cnn: 3
   epochs: 24
+  learning_rate: 0.0001
   train_batch_size: 1
   eval_batch_size: 1
+  num_workers: 2
   image_size: 1024
   mask_num: 5
+  multimask: false
 
 router:
   type: vae
+  threshold: 1.0
+  zero_adapter_mode: identity
   feature: attn_pool
   input_dimension: 256
   latent_dimension: 64
   beta: 16.5
   epochs: 10
   learning_rate: 0.0005
+  k_folds: 5
+  fold_seed: 2025
 
 analysis:
   max_samples_per_task: 500
