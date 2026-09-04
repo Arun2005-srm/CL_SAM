@@ -1,0 +1,3 @@
+[submodule "upstream/ca_sam_official"]
+	path = upstream/ca_sam_official
+	url = https://github.com/azzzzyo/Continual-Alignment-for-SAM.git
