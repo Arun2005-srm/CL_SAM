@@ -130,6 +130,13 @@ Each task saves `history.csv`, `history.json`, and `training_curves.png`.
 This uses the separately retained final-test manifests and invokes the official
 accumulated-task VAE-router evaluation.
 
+It also saves a configurable number of held-out qualitative examples per task
+under `evaluation/qualitative/<task>/`. Each `qualitative_grid.png` shows the
+input image, ground-truth mask, routed prediction, and overlay, annotated with
+per-sample Dice, IoU, boundary IoU, and pixel accuracy. The same values are
+written to `sample_metrics.csv`. Set `evaluation.qualitative_samples_per_task`
+in the configuration (use `0` to disable these panels).
+
 ## Joint latent and router analysis
 
 ```bash

@@ -40,3 +40,5 @@ analysis:
   tsne_seed: 42
   save_embeddings: true
 
+evaluation:
+  qualitative_samples_per_task: 10

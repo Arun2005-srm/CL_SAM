@@ -23,6 +23,11 @@ def main() -> None:
     order = ordered_task_names(config, args.task_order)
     subprocess.run([sys.executable, str(ROOT / "tools" / "verify_upstream.py")], check=True)
     paths, training, router = config["paths"], config["training"], config["router"]
+    qualitative_samples = int(config.get("evaluation", {}).get("qualitative_samples_per_task", 10))
+    if qualitative_samples < 0:
+        raise ValueError("evaluation.qualitative_samples_per_task cannot be negative")
+    if qualitative_samples and int(training.get("eval_batch_size", 1)) != 1:
+        raise ValueError("Qualitative evaluation requires training.eval_batch_size: 1")
     evaluation_data = _evaluation_view(config, order)
     output = Path(paths["output_root"])
     official = output / "official"
@@ -60,6 +65,7 @@ def main() -> None:
             "--cl_matrix_csv", str(evaluation / "continual_iou.csv"),
             "--cl_matrix_biou_csv", str(evaluation / "continual_biou.csv"),
             "--skip_train_vae",
+            "--qualitative_samples", str(qualitative_samples),
         ]
         print(f"=== Final evaluation stage {stage + 1}/{len(order)}: {task} ===")
         print(subprocess.list2cmdline(command))
@@ -69,4 +75,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
