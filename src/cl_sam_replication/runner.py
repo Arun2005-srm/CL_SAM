@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import codecs
 import json
 import os
 import platform
@@ -109,15 +110,32 @@ def run(config: dict[str, Any], order: list[str], dry_run: bool = False, start_a
             source_path = str(ROOT / "src")
             environment["PYTHONPATH"] = source_path + os.pathsep + environment.get("PYTHONPATH", "")
             process = subprocess.Popen(
-                command, cwd=ROOT, env=environment, text=True,
-                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=1,
+                command, cwd=ROOT, env=environment,
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=0,
             )
             assert process.stdout is not None
-            for line in process.stdout:
-                print(line, end="", flush=True)
-                match = EPOCH_PATTERN.search(line)
-                if match:
+            decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
+            parse_buffer = ""
+            reported_epochs: set[int] = set()
+            while True:
+                chunk = process.stdout.read(4096)
+                if not chunk:
+                    break
+                output = decoder.decode(chunk)
+                print(output, end="", flush=True)
+                parse_buffer += output
+                normalized = parse_buffer.replace("\r", "\n")
+                lines = normalized.split("\n")
+                parse_buffer = lines.pop()
+                for line in lines:
+                    match = EPOCH_PATTERN.search(line)
+                    if not match:
+                        continue
                     values = match.groupdict()
+                    epoch = int(values["epoch"])
+                    if epoch in reported_epochs:
+                        continue
+                    reported_epochs.add(epoch)
                     print(
                         f"Epoch [{values['epoch']}/{config['training'].get('epochs', 24)}] | "
                         f"train acc={values['train_accuracy']} loss={values['train_loss']} | "
@@ -126,6 +144,9 @@ def run(config: dict[str, Any], order: list[str], dry_run: bool = False, start_a
                         f"BIoU={values['val_biou']}",
                         flush=True,
                     )
+            remainder = decoder.decode(b"", final=True)
+            if remainder:
+                print(remainder, end="", flush=True)
             return_code = process.wait()
             if return_code:
                 raise subprocess.CalledProcessError(return_code, command)
