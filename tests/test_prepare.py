@@ -50,3 +50,28 @@ def test_copy_transfer_mode(tmp_path: Path):
     assert _materialize_image(source, destination, mode="copy") == "copy"
     assert destination.read_bytes() == source.read_bytes()
     assert destination.stat().st_ino != source.stat().st_ino
+
+
+def test_preparation_resize_and_compact_pseudo(tmp_path: Path):
+    images, masks = tmp_path / "images", tmp_path / "masks"
+    images.mkdir()
+    masks.mkdir()
+    for index in range(10):
+        Image.fromarray(np.full((30, 40, 3), 100, dtype=np.uint8)).save(images / f"{index}.jpg")
+        mask = np.zeros((30, 40), dtype=np.uint8)
+        mask[4:20, 5:25] = 255
+        Image.fromarray(mask).save(masks / f"{index}.png")
+    task = {
+        "name": "large_source", "prepare_size": [16, 16],
+        "source": {"image_dir": str(images), "mask_dir": str(masks)},
+        "labels": {"mode": "binary"},
+        "split": {"seed": 1, "ratios": {"train": 0.6, "val": 0.2, "test": 0.2}},
+    }
+    stats = prepare_task(task, tmp_path / "prepared")
+    root = tmp_path / "prepared" / "large_source"
+    manifest = json.loads((root / "dataset.json").read_text())
+    with Image.open(root / manifest["training"][0]["image"]) as prepared:
+        assert prepared.size == (16, 16)
+    pseudo = np.load(root / manifest["training"][0]["imask"])
+    assert pseudo.dtype == np.int8
+    assert stats["image_transfers"] == {"resized": 10}

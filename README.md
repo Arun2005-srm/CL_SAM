@@ -69,6 +69,12 @@ train/validation/test splits, manifests, and dataset statistics. By default,
 are on the same local filesystem (as they are under `/content` in Colab), then
 falls back to ordinary copies when hard links are unavailable. Deleting the
 original source path does not remove a successfully hard-linked prepared image.
+For unusually large source images, `prepare_size: [1024, 1024]` performs the
+same nearest-neighbour spatial resize expected by the official CA-SAM loader
+once during preparation. This prevents full-resolution labels and pseudo masks
+from dominating preparation time and disk use. Pseudo-mask IDs are stored using
+the smallest safe signed integer dtype and are converted to float32 by the
+unchanged official loader.
 
 ## GPU smoke test
 
