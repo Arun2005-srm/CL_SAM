@@ -49,9 +49,9 @@ tasks:
   - name: isic_2018
     modality: dermoscopy
     image_transfer: auto
-    # CA-SAM consumes 1024x1024 inputs. Resizing once here avoids creating
-    # full-resolution sparse/pseudo-mask intermediates for very large ISIC files.
-    prepare_size: [1024, 1024]
+    # Keep original JPEGs unchanged, but bound label and pseudo-mask storage at
+    # the same spatial size consumed by the official CA-SAM loader.
+    mask_prepare_size: [1024, 1024]
     source:
       image_dir: /content/ca_sam_data/isic_2018/images
       mask_dir: /content/ca_sam_data/isic_2018/masks

@@ -150,26 +150,19 @@ def prepare_task(task: dict[str, Any], output_root: Path) -> dict[str, Any]:
     for split_name, split_pairs_list in splits.items():
         print(f"[{task['name']}] preparing {split_name}...", flush=True)
         for pair_index, pair in enumerate(split_pairs_list, start=1):
+            with Image.open(pair.image) as source_image:
+                source_image.verify()
+                image_width, image_height = source_image.size
             with Image.open(pair.mask) as source_mask:
                 mask = np.asarray(source_mask).copy()
-            prepare_size = task.get("prepare_size")
-            prepared_image = None
-            if prepare_size:
-                target_height, target_width = (int(value) for value in prepare_size)
-                with Image.open(pair.image) as source_image:
-                    prepared_image = source_image.convert("RGB").resize(
-                        (target_width, target_height), resample=Image.Resampling.NEAREST
-                    )
+            mask_prepare_size = task.get("mask_prepare_size")
+            if mask_prepare_size:
+                target_height, target_width = (int(value) for value in mask_prepare_size)
                 mask = np.asarray(
                     Image.fromarray(mask).resize(
                         (target_width, target_height), resample=Image.Resampling.NEAREST
                     )
                 ).copy()
-                image_width, image_height = target_width, target_height
-            else:
-                with Image.open(pair.image) as source_image:
-                    source_image.verify()
-                    image_width, image_height = source_image.size
             labels, current_names = _label_tensor(mask, task)
             if class_names is None:
                 class_names = current_names
@@ -186,17 +179,13 @@ def prepare_task(task: dict[str, Any], output_root: Path) -> dict[str, Any]:
             sample_id = _safe_id(pair.sample_id)
             # Preserve the encoded source image. Re-encoding large JPEG datasets
             # such as ISIC as PNG is unnecessarily slow and can multiply storage.
-            image_suffix = ".jpg" if prepared_image is not None else (pair.image.suffix.casefold() or ".png")
+            image_suffix = pair.image.suffix.casefold() or ".png"
             image_rel = Path("image") / f"{sample_id}{image_suffix}"
-            if prepared_image is not None:
-                prepared_image.save(task_root / image_rel, format="JPEG", quality=95)
-                transfer = "resized"
-            else:
-                transfer = _materialize_image(
-                    pair.image,
-                    task_root / image_rel,
-                    mode=str(task.get("image_transfer", "auto")),
-                )
+            transfer = _materialize_image(
+                pair.image,
+                task_root / image_rel,
+                mode=str(task.get("image_transfer", "auto")),
+            )
             image_transfers[transfer] += 1
             shape = tuple(int(value) for value in labels.shape)
             label_rel = Path("label") / f"{sample_id}.{shape}.npz"

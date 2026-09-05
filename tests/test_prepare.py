@@ -52,7 +52,7 @@ def test_copy_transfer_mode(tmp_path: Path):
     assert destination.stat().st_ino != source.stat().st_ino
 
 
-def test_preparation_resize_and_compact_pseudo(tmp_path: Path):
+def test_mask_resize_preserves_source_image_and_compacts_pseudo(tmp_path: Path):
     images, masks = tmp_path / "images", tmp_path / "masks"
     images.mkdir()
     masks.mkdir()
@@ -62,7 +62,7 @@ def test_preparation_resize_and_compact_pseudo(tmp_path: Path):
         mask[4:20, 5:25] = 255
         Image.fromarray(mask).save(masks / f"{index}.png")
     task = {
-        "name": "large_source", "prepare_size": [16, 16],
+        "name": "large_source", "mask_prepare_size": [16, 16],
         "source": {"image_dir": str(images), "mask_dir": str(masks)},
         "labels": {"mode": "binary"},
         "split": {"seed": 1, "ratios": {"train": 0.6, "val": 0.2, "test": 0.2}},
@@ -71,7 +71,11 @@ def test_preparation_resize_and_compact_pseudo(tmp_path: Path):
     root = tmp_path / "prepared" / "large_source"
     manifest = json.loads((root / "dataset.json").read_text())
     with Image.open(root / manifest["training"][0]["image"]) as prepared:
-        assert prepared.size == (16, 16)
+        assert prepared.size == (40, 30)
+    label_path = root / manifest["training"][0]["label"]
+    shape = eval(label_path.name.split(".")[-2], {"__builtins__": {}})
+    assert shape == (1, 16, 16, 1)
     pseudo = np.load(root / manifest["training"][0]["imask"])
+    assert pseudo.shape == (16, 16)
     assert pseudo.dtype == np.int8
-    assert stats["image_transfers"] == {"resized": 10}
+    assert stats["image_transfers"] == {"hardlink": 10}
