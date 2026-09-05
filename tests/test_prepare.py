@@ -6,6 +6,7 @@ from PIL import Image
 from scipy import sparse
 
 from cl_sam_replication.prepare import _materialize_image, prepare_task
+from cl_sam_replication.discovery import discover_pairs
 
 
 def test_generic_folder_preparation(tmp_path: Path):
@@ -79,3 +80,21 @@ def test_mask_resize_preserves_source_image_and_compacts_pseudo(tmp_path: Path):
     assert pseudo.shape == (16, 16)
     assert pseudo.dtype == np.int8
     assert stats["image_transfers"] == {"hardlink": 10}
+
+
+def test_explicit_unpaired_skip_policy(tmp_path: Path):
+    images, masks = tmp_path / "images", tmp_path / "masks"
+    images.mkdir()
+    masks.mkdir()
+    for name in ("paired", "unmatched"):
+        Image.fromarray(np.zeros((4, 4, 3), dtype=np.uint8)).save(images / f"{name}.png")
+    Image.fromarray(np.ones((4, 4), dtype=np.uint8)).save(masks / "paired.png")
+    task = {
+        "name": "source_with_known_gap",
+        "source": {
+            "image_dir": str(images), "mask_dir": str(masks),
+            "unpaired_policy": "skip",
+        },
+    }
+    pairs = discover_pairs(task)
+    assert [pair.sample_id for pair in pairs] == ["paired"]

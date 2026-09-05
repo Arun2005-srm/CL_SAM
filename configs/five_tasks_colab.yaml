@@ -68,6 +68,8 @@ tasks:
     source:
       image_glob: "*.png"
       mask_glob: "*.png"
+      # The published EBHI archive contains two unmatched image files.
+      unpaired_policy: skip
       collections:
         - name: Adenocarcinoma
           image_dir: /content/ca_sam_data/ebhi_seg/raw/EBHI-SEG/Adenocarcinoma/image

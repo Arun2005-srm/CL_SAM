@@ -63,16 +63,24 @@ def _discover_collection(
     missing_masks = sorted(images.keys() - masks.keys())
     missing_images = sorted(masks.keys() - images.keys())
     if missing_masks or missing_images:
-        raise ValueError(
-            f"Unpaired data: {len(missing_masks)} images lack masks and "
+        policy = source.get("unpaired_policy", "error")
+        message = (
+            f"Unpaired data in {group or image_dir.name}: "
+            f"{len(missing_masks)} images lack masks and "
             f"{len(missing_images)} masks lack images. Examples: "
             f"{(missing_masks + missing_images)[:5]}"
         )
+        if policy == "error":
+            raise ValueError(message)
+        if policy != "skip":
+            raise ValueError(f"Unsupported unpaired_policy {policy!r}")
+        print(f"[WARN] {message} Skipping unmatched files.", flush=True)
 
     prefix = f"{group}/" if group else ""
+    paired_keys = images.keys() & masks.keys()
     return [
         SamplePair(prefix + key, images[key], masks[key], group)
-        for key in sorted(images)
+        for key in sorted(paired_keys)
     ]
 
 
@@ -100,4 +108,3 @@ def discover_pairs(task: dict[str, Any]) -> list[SamplePair]:
     if not pairs:
         raise ValueError(f"No paired samples found for task {task['name']!r}")
     return pairs
-

@@ -55,6 +55,9 @@ dataset needs image and mask directories:
 `source.collections` supports datasets such as EBHI-SEG that contain several
 category-specific image/label directories. Multiclass masks can declare a
 source-value-to-name mapping under `labels.classes`.
+Pairing is strict by default. A dataset with documented unmatched source files
+can set `source.unpaired_policy: skip`; the skipped counts and example keys are
+printed rather than silently accepted.
 
 ## Prepare and validate
 
