@@ -96,6 +96,12 @@ def _safe_id(sample_id: str) -> str:
 def prepare_task(task: dict[str, Any], output_root: Path) -> dict[str, Any]:
     pairs = discover_pairs(task)
     splits = split_pairs(pairs, task.get("split", {}))
+    print(
+        f"[{task['name']}] discovered {len(pairs)} pairs; "
+        f"split sizes: "
+        + ", ".join(f"{name}={len(items)}" for name, items in splits.items()),
+        flush=True,
+    )
     task_root = output_root / task["name"]
     image_root = task_root / "image"
     label_root = task_root / "label"
@@ -111,9 +117,13 @@ def prepare_task(task: dict[str, Any], output_root: Path) -> dict[str, Any]:
     dimensions: Counter[str] = Counter()
 
     for split_name, split_pairs_list in splits.items():
-        for pair in split_pairs_list:
-            image = Image.open(pair.image).convert("RGB")
-            mask = np.asarray(Image.open(pair.mask))
+        print(f"[{task['name']}] preparing {split_name}...", flush=True)
+        for pair_index, pair in enumerate(split_pairs_list, start=1):
+            with Image.open(pair.image) as source_image:
+                source_image.verify()
+                image_width, image_height = source_image.size
+            with Image.open(pair.mask) as source_mask:
+                mask = np.asarray(source_mask).copy()
             labels, current_names = _label_tensor(mask, task)
             if class_names is None:
                 class_names = current_names
@@ -128,8 +138,11 @@ def prepare_task(task: dict[str, Any], output_root: Path) -> dict[str, Any]:
                     continue
 
             sample_id = _safe_id(pair.sample_id)
-            image_rel = Path("image") / f"{sample_id}.png"
-            image.save(task_root / image_rel)
+            # Preserve the encoded source image. Re-encoding large JPEG datasets
+            # such as ISIC as PNG is unnecessarily slow and can multiply storage.
+            image_suffix = pair.image.suffix.casefold() or ".png"
+            image_rel = Path("image") / f"{sample_id}{image_suffix}"
+            shutil.copy2(pair.image, task_root / image_rel)
             shape = tuple(int(value) for value in labels.shape)
             label_rel = Path("label") / f"{sample_id}.{shape}.npz"
             sparse.save_npz(task_root / label_rel, sparse.csr_matrix(labels.reshape(1, -1)))
@@ -141,7 +154,13 @@ def prepare_task(task: dict[str, Any], output_root: Path) -> dict[str, Any]:
             records[split_name].append(record)
             foreground_pixels += int(labels.any(axis=0).sum())
             total_pixels += int(labels.shape[1] * labels.shape[2])
-            dimensions[f"{image.height}x{image.width}"] += 1
+            dimensions[f"{image_height}x{image_width}"] += 1
+            if pair_index % 100 == 0 or pair_index == len(split_pairs_list):
+                print(
+                    f"[{task['name']}] {split_name}: "
+                    f"{pair_index}/{len(split_pairs_list)}",
+                    flush=True,
+                )
 
     if not records["train"] or not records["val"] or not records["test"]:
         raise ValueError(
@@ -175,6 +194,12 @@ def prepare_task(task: dict[str, Any], output_root: Path) -> dict[str, Any]:
         "image_dimensions": dict(dimensions),
     }
     (task_root / "statistics.json").write_text(json.dumps(stats, indent=2), encoding="utf-8")
+    print(
+        f"[{task['name']}] complete: "
+        + ", ".join(f"{name}={len(items)}" for name, items in records.items())
+        + f", skipped={len(skipped)}",
+        flush=True,
+    )
     return stats
 
 
@@ -198,4 +223,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
