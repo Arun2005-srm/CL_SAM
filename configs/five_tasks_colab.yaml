@@ -7,6 +7,7 @@ experiment:
 tasks:
   - name: kvasir_seg
     modality: RGB endoscopy
+    image_transfer: auto
     source:
       image_dir: /content/ca_sam_data/kvasir_seg/images
       mask_dir: /content/ca_sam_data/kvasir_seg/masks
@@ -22,6 +23,7 @@ tasks:
 
   - name: busi
     modality: ultrasound
+    image_transfer: auto
     source:
       image_dir: /content/ca_sam_data/busi/images
       mask_dir: /content/ca_sam_data/busi/masks
@@ -34,6 +36,7 @@ tasks:
 
   - name: sts_2d
     modality: dental X-ray
+    image_transfer: auto
     source:
       image_dir: /content/ca_sam_data/sts_2d/images
       mask_dir: /content/ca_sam_data/sts_2d/masks
@@ -45,6 +48,7 @@ tasks:
 
   - name: isic_2018
     modality: dermoscopy
+    image_transfer: auto
     source:
       image_dir: /content/ca_sam_data/isic_2018/images
       mask_dir: /content/ca_sam_data/isic_2018/masks
@@ -57,6 +61,7 @@ tasks:
 
   - name: ebhi_seg
     modality: histopathology
+    image_transfer: auto
     source:
       image_glob: "*.png"
       mask_glob: "*.png"
@@ -86,4 +91,3 @@ tasks:
       max_samples: null
       group_aware: false
       ratios: {train: 0.70, val: 0.15, test: 0.15}
-

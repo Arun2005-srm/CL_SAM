@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import random
 import shutil
 from collections import Counter
@@ -93,6 +94,29 @@ def _safe_id(sample_id: str) -> str:
     return sample_id.replace("/", "__").replace("\\", "__").replace(" ", "_")
 
 
+def _materialize_image(source: Path, destination: Path, mode: str = "auto") -> str:
+    """Materialize an immutable image without decoding or re-encoding it.
+
+    In auto mode a hard link is preferred. It consumes no second copy of the
+    image data, survives deletion of the source path, and is ideal when both
+    directories are on Colab's local filesystem. Cross-device and unsupported
+    filesystems transparently fall back to a regular metadata-preserving copy.
+    """
+    if mode not in {"auto", "hardlink", "copy"}:
+        raise ValueError(f"Unsupported image_transfer mode: {mode!r}")
+    if destination.exists():
+        destination.unlink()
+    if mode in {"auto", "hardlink"}:
+        try:
+            os.link(source, destination)
+            return "hardlink"
+        except OSError:
+            if mode == "hardlink":
+                raise
+    shutil.copy2(source, destination)
+    return "copy"
+
+
 def prepare_task(task: dict[str, Any], output_root: Path) -> dict[str, Any]:
     pairs = discover_pairs(task)
     splits = split_pairs(pairs, task.get("split", {}))
@@ -115,6 +139,7 @@ def prepare_task(task: dict[str, Any], output_root: Path) -> dict[str, Any]:
     total_pixels = 0
     class_names: list[str] | None = None
     dimensions: Counter[str] = Counter()
+    image_transfers: Counter[str] = Counter()
 
     for split_name, split_pairs_list in splits.items():
         print(f"[{task['name']}] preparing {split_name}...", flush=True)
@@ -142,7 +167,12 @@ def prepare_task(task: dict[str, Any], output_root: Path) -> dict[str, Any]:
             # such as ISIC as PNG is unnecessarily slow and can multiply storage.
             image_suffix = pair.image.suffix.casefold() or ".png"
             image_rel = Path("image") / f"{sample_id}{image_suffix}"
-            shutil.copy2(pair.image, task_root / image_rel)
+            transfer = _materialize_image(
+                pair.image,
+                task_root / image_rel,
+                mode=str(task.get("image_transfer", "auto")),
+            )
+            image_transfers[transfer] += 1
             shape = tuple(int(value) for value in labels.shape)
             label_rel = Path("label") / f"{sample_id}.{shape}.npz"
             sparse.save_npz(task_root / label_rel, sparse.csr_matrix(labels.reshape(1, -1)))
@@ -192,12 +222,13 @@ def prepare_task(task: dict[str, Any], output_root: Path) -> dict[str, Any]:
         "classes": class_names,
         "foreground_fraction": foreground_pixels / max(total_pixels, 1),
         "image_dimensions": dict(dimensions),
+        "image_transfers": dict(image_transfers),
     }
     (task_root / "statistics.json").write_text(json.dumps(stats, indent=2), encoding="utf-8")
     print(
         f"[{task['name']}] complete: "
         + ", ".join(f"{name}={len(items)}" for name, items in records.items())
-        + f", skipped={len(skipped)}",
+        + f", skipped={len(skipped)}, image_transfer={dict(image_transfers)}",
         flush=True,
     )
     return stats

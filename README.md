@@ -64,7 +64,11 @@ source-value-to-name mapping under `labels.classes`.
 ```
 
 Preparation produces official sparse `.npz` labels, pseudo masks, deterministic
-train/validation/test splits, manifests, and dataset statistics.
+train/validation/test splits, manifests, and dataset statistics. By default,
+`image_transfer: auto` uses storage-free hard links when source and destination
+are on the same local filesystem (as they are under `/content` in Colab), then
+falls back to ordinary copies when hard links are unavailable. Deleting the
+original source path does not remove a successfully hard-linked prepared image.
 
 ## GPU smoke test
 

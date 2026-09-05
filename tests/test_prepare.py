@@ -5,7 +5,7 @@ import numpy as np
 from PIL import Image
 from scipy import sparse
 
-from cl_sam_replication.prepare import prepare_task
+from cl_sam_replication.prepare import _materialize_image, prepare_task
 
 
 def test_generic_folder_preparation(tmp_path: Path):
@@ -40,4 +40,13 @@ def test_generic_folder_preparation(tmp_path: Path):
     pseudo = np.load(root / manifest["training"][0]["imask"])
     assert pseudo.min() == -1
     assert pseudo.max() >= 0
+    assert stats["image_transfers"].get("hardlink", 0) == 20
 
+
+def test_copy_transfer_mode(tmp_path: Path):
+    source = tmp_path / "source.bin"
+    destination = tmp_path / "destination.bin"
+    source.write_bytes(b"immutable-image")
+    assert _materialize_image(source, destination, mode="copy") == "copy"
+    assert destination.read_bytes() == source.read_bytes()
+    assert destination.stat().st_ino != source.stat().st_ino
