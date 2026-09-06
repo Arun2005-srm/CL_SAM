@@ -80,8 +80,20 @@ float32 by the unchanged official loader.
 
 ## GPU smoke test
 
+For the SSH/DGX layout under `/raid/workspace/AI4CV_CLSAM`, use
+`configs/five_tasks_server.yaml`. It points training at the extracted prepared
+datasets, the SAM checkpoint, and the server output directory. The Colab config
+remains separate and unchanged.
+
 ```bash
 !cl-sam-smoke --config configs/five_tasks_colab.yaml --tasks 1 --samples 4
+```
+
+On the SSH server:
+
+```bash
+python -m cl_sam_replication.smoke \
+  --config configs/five_tasks_server.yaml --tasks 1 --samples 4
 ```
 
 Inspect the planned command without using the GPU:

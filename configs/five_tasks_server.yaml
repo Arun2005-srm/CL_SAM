@@ -1,0 +1,21 @@
+# SSH/DGX training configuration for the already-prepared dataset archives.
+# Do not run cl-sam-prepare with this file: raw-source paths are inherited from
+# the Colab preparation config but are not used by validate/train/evaluate.
+defaults: five_tasks_colab.yaml
+
+experiment:
+  name: five_task_public_2d_server
+
+paths:
+  prepared_data_root: /raid/workspace/AI4CV_CLSAM/datasets
+  sam_checkpoint: /raid/workspace/AI4CV_CLSAM/models/sam_vit_b_01ec64.pth
+  output_root: /raid/workspace/AI4CV_CLSAM/outputs/five_task_default
+
+training:
+  device: cuda:0
+  train_batch_size: 1
+  eval_batch_size: 1
+  num_workers: 2
+
+evaluation:
+  qualitative_samples_per_task: 10

@@ -39,3 +39,16 @@ def test_external_command_requests_all_reporting_metrics():
     metrics_at = command.index("--metrics")
     assert command[metrics_at + 1: metrics_at + 5] == ["accuracy", "iou", "dice", "biou"]
     assert command[command.index("--all_datasets") + 1] == ",".join(order)
+
+
+def test_server_config_has_dgx_paths():
+    root = Path(__file__).resolve().parents[1]
+    config = load_config(root / "configs" / "five_tasks_server.yaml")
+    assert config["paths"] == {
+        "prepared_data_root": "/raid/workspace/AI4CV_CLSAM/datasets",
+        "sam_checkpoint": "/raid/workspace/AI4CV_CLSAM/models/sam_vit_b_01ec64.pth",
+        "output_root": "/raid/workspace/AI4CV_CLSAM/outputs/five_task_default",
+    }
+    assert config["experiment"]["task_order"] == [
+        "kvasir_seg", "busi", "sts_2d", "isic_2018", "ebhi_seg",
+    ]
