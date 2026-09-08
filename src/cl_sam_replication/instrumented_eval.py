@@ -6,6 +6,7 @@ import runpy
 import sys
 import argparse
 import json
+from contextlib import contextmanager
 from pathlib import Path
 
 import numpy as np
@@ -14,9 +15,39 @@ import torch
 from .qualitative import save_qualitative_panels
 
 
+@contextmanager
+def compact_router_output(enabled: bool = True):
+    """Hide per-batch router diagnostics while retaining tqdm and summaries.
+
+    The upstream evaluator emits multiple ``tqdm.write`` calls for every
+    evaluation batch.  That is useful for debugging but overwhelms notebook
+    output.  Patch tqdm only for the duration of the upstream evaluation and
+    leave the official source tree untouched.
+    """
+    if not enabled:
+        yield
+        return
+
+    from tqdm import tqdm
+
+    original_write = tqdm.write
+
+    def filtered_write(cls, message, file=None, end="\n", nolock=False):
+        if str(message).startswith("[VAE-LOGITS][batch"):
+            return None
+        return original_write(message, file=file, end=end, nolock=nolock)
+
+    tqdm.write = classmethod(filtered_write)
+    try:
+        yield
+    finally:
+        tqdm.write = original_write
+
+
 def main() -> None:
     custom = argparse.ArgumentParser(add_help=False)
     custom.add_argument("--qualitative_samples", type=int, default=0)
+    custom.add_argument("--verbose_router_batches", action="store_true")
     known, remaining = custom.parse_known_args()
     sys.argv = [sys.argv[0], *remaining]
     root = Path(__file__).resolve().parents[2]
@@ -45,7 +76,8 @@ def main() -> None:
         return np.asarray(values)
 
     official_metrics.SegMetrics = instrumented
-    runpy.run_path(str(upstream / "eval_vae_router_load_adapter.py"), run_name="__main__")
+    with compact_router_output(not known.verbose_router_batches):
+        runpy.run_path(str(upstream / "eval_vae_router_load_adapter.py"), run_name="__main__")
     if known.qualitative_samples > 0:
         def argument(name: str) -> str:
             index = remaining.index(name)
