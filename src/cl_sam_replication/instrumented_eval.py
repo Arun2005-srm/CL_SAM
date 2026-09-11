@@ -5,6 +5,7 @@ from __future__ import annotations
 import runpy
 import sys
 import argparse
+import csv
 import json
 from contextlib import contextmanager
 from pathlib import Path
@@ -58,6 +59,7 @@ def main() -> None:
     original = official_metrics.SegMetrics
     captured_predictions: list[np.ndarray] = []
     captured_targets: list[np.ndarray] = []
+    captured_metrics: list[dict[str, float]] = []
 
     def instrumented(pred, label, metric_names):
         names = [metric_names] if isinstance(metric_names, str) else list(metric_names)
@@ -73,29 +75,87 @@ def main() -> None:
                 values.append(float((prediction.bool() == target.bool()).float().mean().item()))
             else:
                 values.append(float(original(pred, label, [name])[0]))
+        captured_metrics.append(dict(zip(names, values)))
         return np.asarray(values)
 
     official_metrics.SegMetrics = instrumented
     with compact_router_output(not known.verbose_router_batches):
         runpy.run_path(str(upstream / "eval_vae_router_load_adapter.py"), run_name="__main__")
-    if known.qualitative_samples > 0:
-        def argument(name: str) -> str:
-            index = remaining.index(name)
-            return remaining[index + 1]
-        data_root = Path(argument("--data_dir"))
-        output_root = Path(argument("--work_dir")) / "qualitative"
-        order = argument("--all_datasets").split(",")
-        current = argument("--dataset_name")
-        offset = 0
-        for task in order[: order.index(current) + 1]:
-            records = json.loads((data_root / task / "dataset.json").read_text(encoding="utf-8"))["test"]
-            end = offset + len(records)
+    def argument(name: str) -> str:
+        index = remaining.index(name)
+        return remaining[index + 1]
+
+    data_root = Path(argument("--data_dir"))
+    work_dir = Path(argument("--work_dir"))
+    order = argument("--all_datasets").split(",")
+    current = argument("--dataset_name")
+    active_tasks = order[: order.index(current) + 1]
+    stage_rows = []
+    offset = 0
+    for task in active_tasks:
+        records = json.loads((data_root / task / "dataset.json").read_text(encoding="utf-8"))["test"]
+        end = offset + len(records)
+        task_metrics = captured_metrics[offset:end]
+        if len(task_metrics) != len(records):
+            raise RuntimeError(
+                f"Captured {len(task_metrics)} metric rows for {task}, expected {len(records)}. "
+                "Use evaluation batch size 1 for research reporting."
+            )
+        averages = {
+            name: float(np.mean([row[name] for row in task_metrics]))
+            for name in task_metrics[0]
+        }
+        stage_rows.append({
+            "stage": order.index(current),
+            "trained_through": current,
+            "task": task,
+            "samples": len(records),
+            "accuracy": averages.get("accuracy", float("nan")),
+            "iou": averages.get("iou", float("nan")),
+            "dice": averages.get("dice", float("nan")),
+            "biou": averages.get("biou", float("nan")),
+        })
+        if known.qualitative_samples > 0:
             save_qualitative_panels(
-                data_root, output_root, task,
+                data_root, work_dir / "qualitative", task,
                 captured_predictions[offset:end], captured_targets[offset:end],
                 known.qualitative_samples,
             )
-            offset = end
+        offset = end
+
+    report_dir = work_dir / "metric_reports"
+    report_dir.mkdir(parents=True, exist_ok=True)
+    fields = ["stage", "trained_through", "task", "samples", "accuracy", "iou", "dice", "biou"]
+    stage_path = report_dir / f"stage_{order.index(current):02d}_{current}.csv"
+    with stage_path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fields)
+        writer.writeheader()
+        writer.writerows(stage_rows)
+
+    if current == order[-1]:
+        final_path = report_dir / "final_five_task_metrics.csv"
+        with final_path.open("w", newline="", encoding="utf-8") as handle:
+            writer = csv.DictWriter(handle, fieldnames=fields)
+            writer.writeheader()
+            writer.writerows(stage_rows)
+        numeric = ["accuracy", "iou", "dice", "biou"]
+        summary = {
+            "task_order": order,
+            "metric_definition": {
+                "accuracy": "mean per-image pixel accuracy",
+                "iou": "mean per-image foreground IoU using the official CA-SAM metric",
+                "dice": "mean per-image foreground Dice using the official CA-SAM metric",
+                "biou": "mean per-image boundary IoU using the official CA-SAM metric",
+            },
+            "per_task": stage_rows,
+            "macro_average": {
+                name: float(np.mean([row[name] for row in stage_rows])) for name in numeric
+            },
+        }
+        (report_dir / "final_five_task_metrics.json").write_text(
+            json.dumps(summary, indent=2), encoding="utf-8"
+        )
+        print(f"[REPORT] Final metric CSV -> {final_path}")
 
 
 if __name__ == "__main__":
